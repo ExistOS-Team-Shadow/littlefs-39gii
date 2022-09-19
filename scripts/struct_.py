@@ -2,6 +2,13 @@
 #
 # Script to find struct sizes.
 #
+# Example:
+# ./scripts/struct_.py lfs.o lfs_util.o -S
+#
+# Copyright (c) 2022, The littlefs authors.
+# Copyright (c) 2017, Arm Limited. All rights reserved.
+# SPDX-License-Identifier: BSD-3-Clause
+#
 
 import collections as co
 import csv
@@ -123,7 +130,7 @@ class StructResult(co.namedtuple('StructResult', 'file,struct,struct_size')):
 
 def openio(path, mode='r'):
     if path == '-':
-        if 'r' in mode:
+        if mode == 'r':
             return os.fdopen(os.dup(sys.stdin.fileno()), 'r')
         else:
             return os.fdopen(os.dup(sys.stdout.fileno()), 'w')
@@ -461,7 +468,7 @@ if __name__ == "__main__":
         nargs='*',
         default=OBJ_PATHS,
         help="Description of where to find *.o files. May be a directory "
-            "or a list of paths. Defaults to %(default)r.")
+            "or a list of paths. Defaults to %r." % OBJ_PATHS)
     parser.add_argument(
         '-v', '--verbose',
         action='store_true',
@@ -512,11 +519,11 @@ if __name__ == "__main__":
         '--objdump-tool',
         type=lambda x: x.split(),
         default=OBJDUMP_TOOL,
-        help="Path to the objdump tool to use.")
+        help="Path to the objdump tool to use. Defaults to %r." % OBJDUMP_TOOL)
     parser.add_argument(
         '--build-dir',
         help="Specify the relative build directory. Used to map object files "
             "to the correct source files.")
     sys.exit(main(**{k: v
-        for k, v in vars(parser.parse_args()).items()
+        for k, v in vars(parser.parse_intermixed_args()).items()
         if v is not None}))
