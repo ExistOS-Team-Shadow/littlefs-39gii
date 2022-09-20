@@ -608,7 +608,7 @@ def main(path='-', *,
                 if not keep_open:
                     break
                 # don't just flood open calls
-                time.sleep(sleep)
+                time.sleep(sleep or 0.1)
         except KeyboardInterrupt:
             pass
     else:
@@ -628,7 +628,7 @@ def main(path='-', *,
                 if not keep_open:
                     break
                 # don't just flood open calls
-                time.sleep(sleep)
+                time.sleep(sleep or 0.1)
             done = True
 
         th.Thread(target=parse, daemon=True).start()
