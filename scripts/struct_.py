@@ -408,7 +408,7 @@ def main(obj_paths, **args):
     else:
         results = []
         with openio(args['use']) as f:
-            reader = csv.DictReader(f)
+            reader = csv.DictReader(f, restval='')
             for r in reader:
                 try:
                     results.append(StructResult(**{
@@ -436,7 +436,7 @@ def main(obj_paths, **args):
         diff_results = []
         try:
             with openio(args['diff']) as f:
-                reader = csv.DictReader(f)
+                reader = csv.DictReader(f, restval='')
                 for r in reader:
                     try:
                         diff_results.append(StructResult(**{
