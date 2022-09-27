@@ -26,12 +26,26 @@ import re
 CSV_PATHS = ['*.csv']
 
 # supported merge operations
+#
+# this is a terrible way to express these
+#
 OPS = {
-    'add': lambda xs: sum(xs[1:], start=xs[0]),
-    'mul': lambda xs: m.prod(xs[1:], start=xs[0]),
-    'min': min,
-    'max': max,
-    'avg': lambda xs: sum(xs[1:], start=xs[0]) / len(xs),
+    'sum':     lambda xs: sum(xs[1:], start=xs[0]),
+    'prod':    lambda xs: m.prod(xs[1:], start=xs[0]),
+    'min':     min,
+    'max':     max,
+    'mean':    lambda xs: FloatField(sum(float(x) for x in xs) / len(xs)),
+    'stddev':  lambda xs: (
+        lambda mean: FloatField(
+            m.sqrt(sum((float(x) - mean)**2 for x in xs) / len(xs)))
+        )(sum(float(x) for x in xs) / len(xs)),
+    'gmean':   lambda xs: FloatField(m.prod(float(x) for x in xs)**(1/len(xs))),
+    'gstddev': lambda xs: (
+        lambda gmean: FloatField(
+            m.exp(m.sqrt(sum(m.log(float(x)/gmean)**2 for x in xs) / len(xs)))
+            if gmean else m.inf)
+        )(m.prod(float(x) for x in xs)**(1/len(xs)))
+
 }
 
 
@@ -48,7 +62,7 @@ def openio(path, mode='r'):
 # integer fields
 class IntField(co.namedtuple('IntField', 'x')):
     __slots__ = ()
-    def __new__(cls, x):
+    def __new__(cls, x=0):
         if isinstance(x, IntField):
             return x
         if isinstance(x, str):
@@ -57,12 +71,21 @@ class IntField(co.namedtuple('IntField', 'x')):
             except ValueError:
                 # also accept +-∞ and +-inf
                 if re.match('^\s*\+?\s*(?:∞|inf)\s*$', x):
-                    x = float('inf')
+                    x = m.inf
                 elif re.match('^\s*-\s*(?:∞|inf)\s*$', x):
-                    x = float('-inf')
+                    x = -m.inf
                 else:
                     raise
+        assert isinstance(x, int) or m.isinf(x), x
         return super().__new__(cls, x)
+
+    def __str__(self):
+        if self.x == m.inf:
+            return '∞'
+        elif self.x == -m.inf:
+            return '-∞'
+        else:
+            return str(self.x)
 
     def __int__(self):
         assert not m.isinf(self.x)
@@ -70,14 +93,6 @@ class IntField(co.namedtuple('IntField', 'x')):
 
     def __float__(self):
         return float(self.x)
-
-    def __str__(self):
-        if self.x == float('inf'):
-            return '∞'
-        elif self.x == float('-inf'):
-            return '-∞'
-        else:
-            return str(self.x)
 
     none = '%7s' % '-'
     def table(self):
@@ -90,9 +105,9 @@ class IntField(co.namedtuple('IntField', 'x')):
         new = self.x if self else 0
         old = other.x if other else 0
         diff = new - old
-        if diff == float('+inf'):
+        if diff == +m.inf:
             return '%7s' % '+∞'
-        elif diff == float('-inf'):
+        elif diff == -m.inf:
             return '%7s' % '-∞'
         else:
             return '%+7d' % diff
@@ -103,9 +118,9 @@ class IntField(co.namedtuple('IntField', 'x')):
         if m.isinf(new) and m.isinf(old):
             return 0.0
         elif m.isinf(new):
-            return float('+inf')
+            return +m.inf
         elif m.isinf(old):
-            return float('-inf')
+            return -m.inf
         elif not old and not new:
             return 0.0
         elif not old:
@@ -115,6 +130,9 @@ class IntField(co.namedtuple('IntField', 'x')):
 
     def __add__(self, other):
         return IntField(self.x + other.x)
+
+    def __sub__(self, other):
+        return IntField(self.x - other.x)
 
     def __mul__(self, other):
         return IntField(self.x * other.x)
@@ -131,16 +149,10 @@ class IntField(co.namedtuple('IntField', 'x')):
     def __ge__(self, other):
         return not self.__lt__(other)
 
-    def __truediv__(self, n):
-        if m.isinf(self.x):
-            return self
-        else:
-            return IntField(round(self.x / n))
-
 # float fields
 class FloatField(co.namedtuple('FloatField', 'x')):
     __slots__ = ()
-    def __new__(cls, x):
+    def __new__(cls, x=0.0):
         if isinstance(x, FloatField):
             return x
         if isinstance(x, str):
@@ -149,23 +161,24 @@ class FloatField(co.namedtuple('FloatField', 'x')):
             except ValueError:
                 # also accept +-∞ and +-inf
                 if re.match('^\s*\+?\s*(?:∞|inf)\s*$', x):
-                    x = float('inf')
+                    x = m.inf
                 elif re.match('^\s*-\s*(?:∞|inf)\s*$', x):
-                    x = float('-inf')
+                    x = -m.inf
                 else:
                     raise
+        assert isinstance(x, float), x
         return super().__new__(cls, x)
 
-    def __float__(self):
-        return float(self.x)
-
     def __str__(self):
-        if self.x == float('inf'):
+        if self.x == m.inf:
             return '∞'
-        elif self.x == float('-inf'):
+        elif self.x == -m.inf:
             return '-∞'
         else:
             return '%.1f' % self.x
+
+    def __float__(self):
+        return float(self.x)
 
     none = IntField.none
     table = IntField.table
@@ -174,22 +187,17 @@ class FloatField(co.namedtuple('FloatField', 'x')):
     diff_diff = IntField.diff_diff
     ratio = IntField.ratio
     __add__ = IntField.__add__
+    __sub__ = IntField.__sub__
     __mul__ = IntField.__mul__
     __lt__ = IntField.__lt__
     __gt__ = IntField.__gt__
     __le__ = IntField.__le__
     __ge__ = IntField.__ge__
 
-    def __truediv__(self, n):
-        if m.isinf(self.x):
-            return self
-        else:
-            return FloatField(self.x / n)
-
 # fractional fields, a/b
 class FracField(co.namedtuple('FracField', 'a,b')):
     __slots__ = ()
-    def __new__(cls, a, b=None):
+    def __new__(cls, a=0, b=None):
         if isinstance(a, FracField) and b is None:
             return a
         if isinstance(a, str) and b is None:
@@ -201,6 +209,9 @@ class FracField(co.namedtuple('FracField', 'a,b')):
     def __str__(self):
         return '%s/%s' % (self.a, self.b)
 
+    def __float__(self):
+        return float(self.a)
+
     none = '%11s %7s' % ('-', '-')
     def table(self):
         if not self.b.x:
@@ -209,8 +220,8 @@ class FracField(co.namedtuple('FracField', 'a,b')):
         t = self.a.x/self.b.x
         return '%11s %7s' % (
             self,
-            '∞%' if t == float('+inf')
-            else '-∞%' if t == float('-inf')
+            '∞%' if t == +m.inf
+            else '-∞%' if t == -m.inf
             else '%.1f%%' % (100*t))
 
     diff_none = '%11s' % '-'
@@ -237,12 +248,15 @@ class FracField(co.namedtuple('FracField', 'a,b')):
     def __add__(self, other):
         return FracField(self.a + other.a, self.b + other.b)
 
+    def __sub__(self, other):
+        return FracField(self.a - other.a, self.b - other.b)
+
     def __mul__(self, other):
         return FracField(self.a * other.a, self.b + other.b)
 
     def __lt__(self, other):
-        self_r = self.a.x/self.b.x if self.b.x else float('-inf')
-        other_r = other.a.x/other.b.x if other.b.x else float('-inf')
+        self_r = self.a.x/self.b.x if self.b.x else -m.inf
+        other_r = other.a.x/other.b.x if other.b.x else -m.inf
         return self_r < other_r
 
     def __gt__(self, other):
@@ -253,9 +267,6 @@ class FracField(co.namedtuple('FracField', 'a,b')):
 
     def __ge__(self, other):
         return not self.__lt__(other)
-
-    def __truediv__(self, n):
-        return FracField(self.a / n, self.b / n)
 
 # available types
 TYPES = [IntField, FloatField, FracField]
@@ -315,7 +326,7 @@ def homogenize(results, *,
                 if k is not None
                     and k not in fields
                     and not any(k == old_k for _, old_k in renames))
-        by = list(by.keys()) 
+        by = list(by.keys())
 
     # go ahead and clean up none values, these can have a few forms
     results_ = []
@@ -358,6 +369,7 @@ def homogenize(results, *,
 def fold(results, *,
         by=[],
         fields=[],
+        types=None,
         ops={},
         **_):
     folding = co.OrderedDict()
@@ -376,7 +388,7 @@ def fold(results, *,
         for k, vs in r.items():
             if vs:
                 # sum fields by default
-                op = OPS[ops.get(k, 'add')]
+                op = OPS[ops.get(k, 'sum')]
                 r_[k] = op(vs)
 
         # drop any rows without fields and any empty keys
@@ -385,14 +397,24 @@ def fold(results, *,
                 {k: v for k, v in zip(by, name) if v},
                 **r_))
 
-    return folded
+    # what is the type of merged fields?
+    if types is not None:
+        types_ = {}
+        for k in fields:
+            op = OPS[ops.get(k, 'sum')]
+            types_[k] = op([types[k]()]).__class__
+
+    if types is None:
+        return folded
+    else:
+        return types_, folded
 
 
-def table(results, diff_results=None, *,
-        by=None,
-        fields=None,
-        types=None,
-        ops=None,
+def table(results, total, diff_results=None, diff_total=None, *,
+        by=[],
+        fields=[],
+        types={},
+        ops={},
         sort=None,
         reverse_sort=None,
         summary=False,
@@ -473,8 +495,8 @@ def table(results, diff_results=None, *,
                         if k in r else types[k].diff_none
                         for k in fields),
                     ' (%s)' % ', '.join(
-                            '+∞%' if t == float('+inf')
-                            else '-∞%' if t == float('-inf')
+                            '+∞%' if t == +m.inf
+                            else '-∞%' if t == -m.inf
                             else '%+.1f%%' % (100*t)
                             for t in ratios)))
             else:
@@ -489,19 +511,17 @@ def table(results, diff_results=None, *,
                         if k in r or k in diff_r else types[k].diff_none
                         for k in fields),
                     ' (%s)' % ', '.join(
-                            '+∞%' if t == float('+inf')
-                            else '-∞%' if t == float('-inf')
+                            '+∞%' if t == +m.inf
+                            else '-∞%' if t == -m.inf
                             else '%+.1f%%' % (100*t)
                             for t in ratios
                             if t)
                         if any(ratios) else ''))
 
     # print total
-    total = fold(results, by=[], fields=fields, ops=ops)
-    r = total[0] if total else {}
-    if diff_results is not None:
-        diff_total = fold(diff_results, by=[], fields=fields, ops=ops)
-        diff_r = diff_total[0] if diff_total else {}
+    r = total
+    if diff_total is not None:
+        diff_r = diff_total
         ratios = [types[k].ratio(r.get(k), diff_r.get(k))
             for k in fields]
 
@@ -517,8 +537,8 @@ def table(results, diff_results=None, *,
                 if k in r else types[k].diff_none
                 for k in fields),
             ' (%s)' % ', '.join(
-                    '+∞%' if t == float('+inf')
-                    else '-∞%' if t == float('-inf')
+                    '+∞%' if t == +m.inf
+                    else '-∞%' if t == -m.inf
                     else '%+.1f%%' % (100*t)
                     for t in ratios)))
     else:
@@ -533,8 +553,8 @@ def table(results, diff_results=None, *,
                 if k in r or k in diff_r else types[k].diff_none
                 for k in fields),
             ' (%s)' % ', '.join(
-                    '+∞%' if t == float('+inf')
-                    else '-∞%' if t == float('-inf')
+                    '+∞%' if t == +m.inf
+                    else '-∞%' if t == -m.inf
                     else '%+.1f%%' % (100*t)
                     for t in ratios
                     if t)
@@ -598,9 +618,13 @@ def main(csv_paths, *,
     by, fields, types, results = homogenize(results,
         by=by, fields=fields, renames=renames, define=define)
 
+    # fold for total, note we do this with the raw data to avoid
+    # issues with lossy operations
+    total = fold(results, fields=fields, ops=ops)
+    total = total[0] if total else {}
+
     # fold to remove duplicates
-    results = fold(results,
-        by=by, fields=fields, ops=ops)
+    types_, results = fold(results, by=by, fields=fields, types=types, ops=ops)
 
     # write results to CSV
     if args.get('output'):
@@ -625,19 +649,25 @@ def main(csv_paths, *,
         _, _, _, diff_results = homogenize(diff_results,
             by=by, fields=fields, renames=renames, define=define, types=types)
 
+        # fold for total, note we do this with the raw data to avoid
+        # issues with lossy operations
+        diff_total = fold(diff_results, fields=fields, ops=ops)
+        diff_total = diff_total[0] if diff_total else {}
+
         # fold to remove duplicates
-        diff_results = fold(diff_results,
-            by=by, fields=fields, ops=ops)
+        diff_results = fold(diff_results, by=by, fields=fields, ops=ops)
 
     # print table
     if not args.get('quiet'):
         table(
             results,
+            total,
             diff_results if args.get('diff') else None,
+            diff_total if args.get('diff') else None,
             by=by,
             fields=fields,
+            types=types_,
             ops=ops,
-            types=types,
             **args)
 
 
@@ -686,11 +716,11 @@ if __name__ == "__main__":
         help="Only include rows where this field is this value. May include "
             "comma-separated options.")
     parser.add_argument(
-        '--add',
+        '--sum',
         action='append',
         help="Add these fields (the default).")
     parser.add_argument(
-        '--mul',
+        '--prod',
         action='append',
         help="Multiply these fields.")
     parser.add_argument(
@@ -702,9 +732,21 @@ if __name__ == "__main__":
         action='append',
         help="Take the maximum of these fields.")
     parser.add_argument(
-        '--avg',
+        '--mean',
         action='append',
         help="Average these fields.")
+    parser.add_argument(
+        '--stddev',
+        action='append',
+        help="Find the standard deviation of these fields.")
+    parser.add_argument(
+        '--gmean',
+        action='append',
+        help="Find the geometric mean of these fields.")
+    parser.add_argument(
+        '--gstddev',
+        action='append',
+        help="Find the geometric standard deviation of these fields.")
     parser.add_argument(
         '-s', '--sort',
         action='append',
