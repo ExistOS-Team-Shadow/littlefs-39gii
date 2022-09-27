@@ -742,8 +742,8 @@ def run_stage(name, runner_, ids, output_, **args):
     passed_suite_perms = co.defaultdict(lambda: 0)
     passed_case_perms = co.defaultdict(lambda: 0)
     passed_perms = 0
-    read = 0
-    prog = 0
+    readed = 0
+    proged = 0
     erased = 0
     failures = []
     killed = False
@@ -751,8 +751,8 @@ def run_stage(name, runner_, ids, output_, **args):
     pattern = re.compile('^(?:'
             '(?P<op>running|finished|skipped|powerloss)'
                 ' (?P<id>(?P<case>[^:]+)[^\s]*)'
-                '(?: (?P<read>\d+))?'
-                '(?: (?P<prog>\d+))?'
+                '(?: (?P<readed>\d+))?'
+                '(?: (?P<proged>\d+))?'
                 '(?: (?P<erased>\d+))?'
             '|' '(?P<path>[^:]+):(?P<lineno>\d+):(?P<op_>assert):'
                 ' *(?P<message>.*)'
@@ -764,8 +764,8 @@ def run_stage(name, runner_, ids, output_, **args):
         nonlocal passed_suite_perms
         nonlocal passed_case_perms
         nonlocal passed_perms
-        nonlocal read
-        nonlocal prog
+        nonlocal readed
+        nonlocal proged
         nonlocal erased
         nonlocal locals
 
@@ -822,14 +822,14 @@ def run_stage(name, runner_, ids, output_, **args):
                     elif op == 'finished':
                         case = m.group('case')
                         suite = case_suites[case]
-                        read_ = int(m.group('read'))
-                        prog_ = int(m.group('prog'))
+                        readed_ = int(m.group('readed'))
+                        proged_ = int(m.group('proged'))
                         erased_ = int(m.group('erased'))
                         passed_suite_perms[suite] += 1
                         passed_case_perms[case] += 1
                         passed_perms += 1
-                        read += read_
-                        prog += prog_
+                        readed += readed_
+                        proged += proged_
                         erased += erased_
                         if output_:
                             # get defines and write to csv
@@ -838,8 +838,8 @@ def run_stage(name, runner_, ids, output_, **args):
                             output_.writerow({
                                 'suite': suite,
                                 'case': case,
-                                'bench_read': read_,
-                                'bench_prog': prog_,
+                                'bench_readed': readed_,
+                                'bench_proged': proged_,
                                 'bench_erased': erased_,
                                 **defines})
                     elif op == 'skipped':
@@ -981,8 +981,8 @@ def run_stage(name, runner_, ids, output_, **args):
     return (
         expected_perms,
         passed_perms,
-        read,
-        prog,
+        readed,
+        proged,
         erased,
         failures,
         killed)
@@ -1019,7 +1019,7 @@ def run(runner, bench_ids=[], **args):
     if args.get('output'):
         output = BenchOutput(args['output'],
             ['suite', 'case'],
-            ['bench_read', 'bench_prog', 'bench_erased'])
+            ['bench_readed', 'bench_proged', 'bench_erased'])
 
     # measure runtime
     start = time.time()
@@ -1027,8 +1027,8 @@ def run(runner, bench_ids=[], **args):
     # spawn runners
     expected = 0
     passed = 0
-    read = 0
-    prog = 0
+    readed = 0
+    proged = 0
     erased = 0
     failures = []
     for by in (expected_case_perms.keys() if args.get('by_cases')
@@ -1037,8 +1037,8 @@ def run(runner, bench_ids=[], **args):
         # spawn jobs for stage
         (expected_,
             passed_,
-            read_,
-            prog_,
+            readed_,
+            proged_,
             erased_,
             failures_,
             killed) = run_stage(
@@ -1050,8 +1050,8 @@ def run(runner, bench_ids=[], **args):
         # collect passes/failures
         expected += expected_
         passed += passed_
-        read += read_
-        prog += prog_
+        readed += readed_
+        proged += proged_
         erased += erased_
         failures.extend(failures_)
         if (failures and not args.get('keep_going')) or killed:
@@ -1073,8 +1073,8 @@ def run(runner, bench_ids=[], **args):
             if args['color'] else '',
         '\x1b[m' if args['color'] else '',
         ', '.join(filter(None, [
-            '%d read' % read,
-            '%d prog' % prog,
+            '%d readed' % readed,
+            '%d proged' % proged,
             '%d erased' % erased,
             'in %.2fs' % (stop-start)]))))
     print()
