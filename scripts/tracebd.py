@@ -831,7 +831,8 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(
         description="Display operations on block devices based on "
-            "trace output.")
+            "trace output.",
+        allow_abbrev=False)
     parser.add_argument(
         'path',
         nargs='?',
