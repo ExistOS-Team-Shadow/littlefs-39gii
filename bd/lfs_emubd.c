@@ -164,6 +164,19 @@ int lfs_emubd_create(const struct lfs_config *cfg,
             memset(bd->disk->scratch,
                     bd->cfg->erase_value,
                     bd->cfg->erase_size);
+
+            // go ahead and erase all of the disk, otherwise the file will not
+            // match our internal representation
+            for (size_t i = 0; i < bd->cfg->erase_count; i++) {
+                ssize_t res = write(bd->disk->fd,
+                        bd->disk->scratch,
+                        bd->cfg->erase_size);
+                if (res < 0) {
+                    int err = -errno;
+                    LFS_EMUBD_TRACE("lfs_emubd_create -> %d", err);
+                    return err;
+                }
+            }
         }
     }
 
