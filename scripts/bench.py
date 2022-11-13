@@ -119,6 +119,8 @@ class BenchCase:
                     else:
                         yield v_
             # or a literal value
+            elif isinstance(v, bool):
+                yield 'true' if v else 'false'
             else:
                 yield v
 
